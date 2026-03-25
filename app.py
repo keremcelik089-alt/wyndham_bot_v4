@@ -4,6 +4,7 @@ import time
 from datetime import date
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service # YENİ: Servis kütüphanesi eklendi
 from selenium.webdriver.common.by import By
 
 # Ekran ayarı
@@ -14,6 +15,10 @@ st.markdown("**Öncelikli Otel:** Wyndham Alanya 🎯")
 
 # Otellerin Temel Linkleri
 HOTELS = {
+    "Wyndham Alanya 🏆": "https://www.wyndhamhotels.com/wyndham/antalya-turkiye/wyndham-alanya/rooms-rates",
+    "Ramada Resort Akbük": "https://www.wyndhamhotels.com/ramada/aydin-turkiye/ramada-resort-akbuk/rooms-rates",
+    "Ramada Hotel & Suites Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-hotel-and-suites-kusadasi/rooms-rates",
+    "Ramada Resort Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-resort-kusadasi/rooms-rates",
     "Ramada Tire": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-by-wyndham-tire/rooms-rates",
     "Wyndham Garden Lara": "https://www.wyndhamhotels.com/wyndham-garden/antalya-turkiye/wyndham-garden-lara/rooms-rates",
     "Ramada Resort Lara": "https://www.wyndhamhotels.com/ramada/antalya-turkiye/ramada-resort-lara/rooms-rates",
@@ -38,13 +43,11 @@ def check_free_night(driver, hotel_url, checkin, checkout):
     
     try:
         driver.get(full_url)
-        # Sitenin verileri yüklemesi ve odayı bulması için 6 saniye kesin bekleme
+        # Sitenin verileri yüklemesi ve odayı bulması için bekleme
         time.sleep(6) 
         
-        # Sayfanın arkasındaki kodları değil, EKRANDA GÖRÜNEN metni al
         body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
         
-        # Attığın fotoğraftaki kesin kelimeler
         if "free nights" in body_text or "pts/night" in body_text or "15,000" in body_text:
             return "✅ BOŞ ODA BULUNDU!", full_url
         elif "this hotel is not available for your dates" in body_text:
@@ -60,29 +63,32 @@ def check_free_night(driver, hotel_url, checkin, checkout):
 if st.button("🚀 Taramayı Başlat", type="primary"):
     st.info("Tarama başladı... Sistem sayfaların tam yüklenmesini beklediği için her otel yaklaşık 6 saniye sürecektir.")
     
-    # 1. ÇÖZÜM: TABLO İÇİN TEK BİR ALAN OLUŞTURUYORUZ (Aşağıya çoğalmayacak)
     table_placeholder = st.empty()
     
-    # Arka planda Görünmez Chrome Ayarları
+    # YENİ: Streamlit Cloud (Linux) için özel Chrome Ayarları ve Dosya Yolları
     options = Options()
-    options.add_argument('--headless=new')
+    options.add_argument('--headless') # Görünmez mod
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
-    driver = webdriver.Chrome(options=options)
-    
-    results =[]
-    progress_bar = st.progress(0)
-    total_checks = len(HOTELS) * len(TEST_DATES)
-    current_check = 0
+    # BURASI ÇOK ÖNEMLİ: Streamlit sunucusundaki tarayıcının yerini gösteriyoruz
+    options.binary_location = "/usr/bin/chromium"
+    service = Service("/usr/bin/chromedriver")
     
     try:
+        # Chrome'u tanımlanan servis ve yollarla başlat
+        driver = webdriver.Chrome(service=service, options=options)
+        
+        results =[]
+        progress_bar = st.progress(0)
+        total_checks = len(HOTELS) * len(TEST_DATES)
+        current_check = 0
+        
         for hotel_name, base_url in HOTELS.items():
             for checkin, checkout, date_label in TEST_DATES:
-                
                 status, link = check_free_night(driver, base_url, checkin, checkout)
                 
                 results.append({
@@ -97,16 +103,19 @@ if st.button("🚀 Taramayı Başlat", type="primary"):
                 
                 df = pd.DataFrame(results)
                 
-                # SADECE AYNI TABLOYU GÜNCELLE
                 table_placeholder.dataframe(
                     df, 
                     column_config={"Rezervasyon Linki": st.column_config.LinkColumn("Siteye Git")},
                     hide_index=True,
                     use_container_width=True
                 )
+                
+    except Exception as e:
+        st.error(f"Chrome başlatılamadı! Hata detayı: {e}")
     finally:
-        # Sunucu çökmemesi için işlem bitince tarayıcıyı kapat
-        driver.quit()
+        # Hata olsa da olmasa da sekmeleri kapat (sunucu şişmesin)
+        if 'driver' in locals():
+            driver.quit()
         
     st.success("✅ Tarama Tamamlandı!")
     if any("BOŞ" in res["Durum"] for res in results):
