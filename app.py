@@ -15,10 +15,6 @@ st.markdown("**Öncelikli Otel:** Wyndham Alanya 🎯")
 
 # Otellerin Temel Linkleri
 HOTELS = {
-    "Wyndham Alanya 🏆": "https://www.wyndhamhotels.com/wyndham/antalya-turkiye/wyndham-alanya/rooms-rates",
-    "Ramada Resort Akbük": "https://www.wyndhamhotels.com/ramada/aydin-turkiye/ramada-resort-akbuk/rooms-rates",
-    "Ramada Hotel & Suites Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-hotel-and-suites-kusadasi/rooms-rates",
-    "Ramada Resort Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-resort-kusadasi/rooms-rates",
     "Ramada Tire": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-by-wyndham-tire/rooms-rates",
     "Wyndham Garden Lara": "https://www.wyndhamhotels.com/wyndham-garden/antalya-turkiye/wyndham-garden-lara/rooms-rates",
     "Ramada Resort Lara": "https://www.wyndhamhotels.com/ramada/antalya-turkiye/ramada-resort-lara/rooms-rates",
@@ -29,11 +25,7 @@ HOTELS = {
 # TEST TARİHLERİ
 TEST_DATES =[
     (date(2026, 6, 29), date(2026, 7, 3),  "29 Haz - 3 Tem (Pzt - Cuma)"),
-    (date(2026, 6, 29), date(2026, 7, 1),  "29 Haz - 1 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 1),  date(2026, 7, 3),  "1 Tem - 3 Tem (Çarş - Cuma)"),
     (date(2026, 7, 6),  date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
-    (date(2026, 7, 6),  date(2026, 7, 8),  "6 Tem - 8 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 8),  date(2026, 7, 10), "8 Tem - 10 Tem (Çarş - Cuma)")
 ]
 
 def check_free_night(driver, hotel_url, checkin, checkout):
