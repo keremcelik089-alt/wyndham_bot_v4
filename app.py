@@ -1,21 +1,19 @@
 import streamlit as st
-import cloudscraper # Bot korumasını aşmak için özel kütüphane
 import pandas as pd
 import time
 from datetime import date
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
-# iPad ekranına uygun geniş tasarım
+# Ekran ayarı
 st.set_page_config(page_title="Wyndham Free Night Avcısı", layout="wide")
 
 st.title("🏨 Wyndham 'Free Night' Kontrol Paneli")
 st.markdown("**Öncelikli Otel:** Wyndham Alanya 🎯")
 
-# Otellerin Temel Linkleri (Tarihler olmadan)
+# Otellerin Temel Linkleri
 HOTELS = {
-    "Wyndham Alanya 🏆": "https://www.wyndhamhotels.com/wyndham/antalya-turkiye/wyndham-alanya/rooms-rates",
-    "Ramada Resort Akbük": "https://www.wyndhamhotels.com/ramada/aydin-turkiye/ramada-resort-akbuk/rooms-rates",
-    "Ramada Hotel & Suites Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-hotel-and-suites-kusadasi/rooms-rates",
-    "Ramada Resort Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-resort-kusadasi/rooms-rates",
     "Ramada Tire": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-by-wyndham-tire/rooms-rates",
     "Wyndham Garden Lara": "https://www.wyndhamhotels.com/wyndham-garden/antalya-turkiye/wyndham-garden-lara/rooms-rates",
     "Ramada Resort Lara": "https://www.wyndhamhotels.com/ramada/antalya-turkiye/ramada-resort-lara/rooms-rates",
@@ -23,90 +21,93 @@ HOTELS = {
     "Ramada Encore İzmir": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-encore-izmir/rooms-rates"
 }
 
-# İLK 2 HAFTA İÇİN TEST TARİHLERİ (2026 Yılı - İstenilen Kombinasyonlar)
+# TEST TARİHLERİ
 TEST_DATES =[
-    # 1. Hafta Kombinasyonları
     (date(2026, 6, 29), date(2026, 7, 3),  "29 Haz - 3 Tem (Pzt - Cuma)"),
     (date(2026, 6, 29), date(2026, 7, 1),  "29 Haz - 1 Tem (Pzt - Çarş)"),
     (date(2026, 7, 1),  date(2026, 7, 3),  "1 Tem - 3 Tem (Çarş - Cuma)"),
-    
-    # 2. Hafta Kombinasyonları
     (date(2026, 7, 6),  date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
     (date(2026, 7, 6),  date(2026, 7, 8),  "6 Tem - 8 Tem (Pzt - Çarş)"),
     (date(2026, 7, 8),  date(2026, 7, 10), "8 Tem - 10 Tem (Çarş - Cuma)")
 ]
 
-def check_free_night(hotel_url, checkin, checkout):
-    # Wyndham'ın istediği tarih formatı: M/D/YYYY
+def check_free_night(driver, hotel_url, checkin, checkout):
     ci_str = f"{checkin.month}%2F{checkin.day}%2F{checkin.year}"
     co_str = f"{checkout.month}%2F{checkout.day}%2F{checkout.year}"
-    
-    # URL'yi oluştur (Puanlı arama parametreleriyle)
     full_url = f"{hotel_url}?brand_id=ALL&checkInDate={ci_str}&checkOutDate={co_str}&useWRPoints=true&children=0&adults=1&rooms=1"
     
-    # cloudscraper ile Wyndham'ın bot korumasını aşıyoruz
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'ios', 'desktop': False})
-    
     try:
-        response = scraper.get(full_url, timeout=15)
-        html = response.text.lower() # Küçük harfe çevir ki eşleşme kolay olsun
+        driver.get(full_url)
+        # Sitenin verileri yüklemesi ve odayı bulması için 6 saniye kesin bekleme
+        time.sleep(6) 
         
-        # Ekran görüntülerinden aldığımız KESİN sonuç kelimeleri
-        if "this hotel is not available for your dates" in html:
-            return "❌ Dolu", full_url
-        elif "free nights" in html or "pts/night" in html:
+        # Sayfanın arkasındaki kodları değil, EKRANDA GÖRÜNEN metni al
+        body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
+        
+        # Attığın fotoğraftaki kesin kelimeler
+        if "free nights" in body_text or "pts/night" in body_text or "15,000" in body_text:
             return "✅ BOŞ ODA BULUNDU!", full_url
-        elif "access denied" in html or "security check" in html:
-            return "⚠️ Engellendi (Bot Koruması)", full_url
+        elif "this hotel is not available for your dates" in body_text:
+            return "❌ Dolu", full_url
+        elif "access denied" in body_text or "security" in body_text:
+             return "⚠️ Sistem Engeli", full_url
         else:
             return "❓ Belirsiz (Linke Tıkla)", full_url
             
     except Exception as e:
-        return "⚠️ Hata (Bağlantı Kurulamadı)", full_url
+        return "⚠️ Bağlantı Hatası", full_url
 
-# Arayüz - Tarama Butonu
 if st.button("🚀 Taramayı Başlat", type="primary"):
-    st.info("Tarama başladı... Lütfen bekleyin. (Bot korumasına takılmamak için oteller arası 3 saniye bekleniyor)")
+    st.info("Tarama başladı... Sistem sayfaların tam yüklenmesini beklediği için her otel yaklaşık 6 saniye sürecektir.")
+    
+    # 1. ÇÖZÜM: TABLO İÇİN TEK BİR ALAN OLUŞTURUYORUZ (Aşağıya çoğalmayacak)
+    table_placeholder = st.empty()
+    
+    # Arka planda Görünmez Chrome Ayarları
+    options = Options()
+    options.add_argument('--headless=new')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    
+    driver = webdriver.Chrome(options=options)
     
     results =[]
     progress_bar = st.progress(0)
     total_checks = len(HOTELS) * len(TEST_DATES)
     current_check = 0
     
-    # Tabloyu anlık göstermek için boş bir alan oluştur
-    table_placeholder = st.empty()
-    
-    for hotel_name, base_url in HOTELS.items():
-        for checkin, checkout, date_label in TEST_DATES:
-            
-            # Taramayı yap
-            status, link = check_free_night(base_url, checkin, checkout)
-            
-            # Sonucu listeye ekle
-            results.append({
-                "Otel Adı": hotel_name,
-                "Tarih": date_label,
-                "Durum": status,
-                "Rezervasyon Linki": link
-            })
-            
-            current_check += 1
-            progress_bar.progress(current_check / total_checks)
-            
-            # Tabloyu her adımda güncelle
-            df = pd.DataFrame(results)
-            # Linkleri tıklanabilir yapmak
-            st.dataframe(
-                df, 
-                column_config={
-                    "Rezervasyon Linki": st.column_config.LinkColumn("Siteye Git")
-                },
-                hide_index=True
-            )
-            
-            # Wyndham engellemesin diye aralarda zorunlu bekleme
-            time.sleep(3)
-
-    st.success("✅ Tarama Tamamlandı! Yukarıdaki tablodan sonuçları inceleyebilirsin.")
+    try:
+        for hotel_name, base_url in HOTELS.items():
+            for checkin, checkout, date_label in TEST_DATES:
+                
+                status, link = check_free_night(driver, base_url, checkin, checkout)
+                
+                results.append({
+                    "Otel Adı": hotel_name,
+                    "Tarih": date_label,
+                    "Durum": status,
+                    "Rezervasyon Linki": link
+                })
+                
+                current_check += 1
+                progress_bar.progress(current_check / total_checks)
+                
+                df = pd.DataFrame(results)
+                
+                # SADECE AYNI TABLOYU GÜNCELLE
+                table_placeholder.dataframe(
+                    df, 
+                    column_config={"Rezervasyon Linki": st.column_config.LinkColumn("Siteye Git")},
+                    hide_index=True,
+                    use_container_width=True
+                )
+    finally:
+        # Sunucu çökmemesi için işlem bitince tarayıcıyı kapat
+        driver.quit()
+        
+    st.success("✅ Tarama Tamamlandı!")
     if any("BOŞ" in res["Durum"] for res in results):
-        st.balloons() # Eğer boş oda bulursa ekranda kutlama balonları uçar!
+        st.balloons()
