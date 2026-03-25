@@ -1,0 +1,36 @@
+name: 12 Saatlik Wyndham Taraması
+
+on:
+  schedule:
+    - cron: '0 5,17 * * *' # Günde iki kez (Türkiye saatiyle yaklaşık sabah 08:00 ve akşam 20:00)
+  workflow_dispatch: # İstediğin zaman GitHub'dan manuel de tetikleyebilmen için
+
+jobs:
+  scrape-and-save:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Dosyayı kaydetmesi için yazma izni
+    
+    steps:
+      - name: Depoyu Çek
+        uses: actions/checkout@v3
+
+      - name: Python Kurulumu
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Gerekli Kütüphaneleri Yükle
+        run: |
+          pip install selenium pandas pytz
+
+      - name: Robotu Çalıştır (Otomasyon)
+        run: python otomasyon.py
+
+      - name: Sonuçları Veri Tabanına (CSV) Kaydet
+        run: |
+          git config --global user.name "Wyndham Robotu"
+          git config --global user.email "bot@wyndham.com"
+          git add son_durum.csv
+          git add bulunan_odalar_gecmisi.csv || true
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Otomatik Tarama Verileri Güncellendi" && git push)
