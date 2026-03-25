@@ -1,6 +1,5 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
+import cloudscraper # Bot korumasını aşmak için özel kütüphane
 import pandas as pd
 import time
 from datetime import date
@@ -24,17 +23,18 @@ HOTELS = {
     "Ramada Encore İzmir": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-encore-izmir/rooms-rates"
 }
 
-# SADECE TEST TARİHLERİ (2026 Yılı - İstenilen ilk iki haftanın Pzt-Cuma'sı)
-TEST_DATES = [
-    (date(2026, 6, 29), date(2026, 7, 3), "29 Haz - 3 Tem (4 Gece)"),
-    (date(2026, 7, 6), date(2026, 7, 10), "6 Tem - 10 Tem (4 Gece)")
+# İLK 2 HAFTA İÇİN TEST TARİHLERİ (2026 Yılı - İstenilen Kombinasyonlar)
+TEST_DATES =[
+    # 1. Hafta Kombinasyonları
+    (date(2026, 6, 29), date(2026, 7, 3),  "29 Haz - 3 Tem (Pzt - Cuma)"),
+    (date(2026, 6, 29), date(2026, 7, 1),  "29 Haz - 1 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 1),  date(2026, 7, 3),  "1 Tem - 3 Tem (Çarş - Cuma)"),
+    
+    # 2. Hafta Kombinasyonları
+    (date(2026, 7, 6),  date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
+    (date(2026, 7, 6),  date(2026, 7, 8),  "6 Tem - 8 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 8),  date(2026, 7, 10), "8 Tem - 10 Tem (Çarş - Cuma)")
 ]
-
-# Bot korumasına takılmamak için sahte tarayıcı başlığı
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9"
-}
 
 def check_free_night(hotel_url, checkin, checkout):
     # Wyndham'ın istediği tarih formatı: M/D/YYYY
@@ -44,25 +44,31 @@ def check_free_night(hotel_url, checkin, checkout):
     # URL'yi oluştur (Puanlı arama parametreleriyle)
     full_url = f"{hotel_url}?brand_id=ALL&checkInDate={ci_str}&checkOutDate={co_str}&useWRPoints=true&children=0&adults=1&rooms=1"
     
+    # cloudscraper ile Wyndham'ın bot korumasını aşıyoruz
+    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'ios', 'desktop': False})
+    
     try:
-        response = requests.get(full_url, headers=HEADERS, timeout=10)
-        # Sitedeki uyarı metinlerini kontrol et
-        html = response.text.lower()
+        response = scraper.get(full_url, timeout=15)
+        html = response.text.lower() # Küçük harfe çevir ki eşleşme kolay olsun
         
-        # Eğer odalar tükendiyse Wyndham genelde bu tarz kelimeler kullanır
-        if "no rooms available" in html or "sold out" in html or "we are unable to find" in html:
+        # Ekran görüntülerinden aldığımız KESİN sonuç kelimeleri
+        if "this hotel is not available for your dates" in html:
             return "❌ Dolu", full_url
+        elif "free nights" in html or "pts/night" in html:
+            return "✅ BOŞ ODA BULUNDU!", full_url
+        elif "access denied" in html or "security check" in html:
+            return "⚠️ Engellendi (Bot Koruması)", full_url
         else:
-            return "✅ BOŞ ODA OLABİLİR!", full_url
+            return "❓ Belirsiz (Linke Tıkla)", full_url
             
     except Exception as e:
-        return "⚠️ Hata (Bağlantı)", full_url
+        return "⚠️ Hata (Bağlantı Kurulamadı)", full_url
 
 # Arayüz - Tarama Butonu
 if st.button("🚀 Taramayı Başlat", type="primary"):
-    st.info("Tarama başladı... Lütfen bekleyin. (Bot korumasına takılmamak için oteller arası 2 saniye bekleniyor)")
+    st.info("Tarama başladı... Lütfen bekleyin. (Bot korumasına takılmamak için oteller arası 3 saniye bekleniyor)")
     
-    results = []
+    results =[]
     progress_bar = st.progress(0)
     total_checks = len(HOTELS) * len(TEST_DATES)
     current_check = 0
@@ -89,7 +95,7 @@ if st.button("🚀 Taramayı Başlat", type="primary"):
             
             # Tabloyu her adımda güncelle
             df = pd.DataFrame(results)
-            # Linkleri tıklanabilir yapmak için Streamlit ayarı
+            # Linkleri tıklanabilir yapmak
             st.dataframe(
                 df, 
                 column_config={
@@ -98,9 +104,9 @@ if st.button("🚀 Taramayı Başlat", type="primary"):
                 hide_index=True
             )
             
-            # Çok hızlı istek atıp engellenmemek için ufak bir bekleme
-            time.sleep(2)
+            # Wyndham engellemesin diye aralarda zorunlu bekleme
+            time.sleep(3)
 
     st.success("✅ Tarama Tamamlandı! Yukarıdaki tablodan sonuçları inceleyebilirsin.")
     if any("BOŞ" in res["Durum"] for res in results):
-        st.balloons() # Eğer boş oda bulursa ekranda balonlar uçar :)
+        st.balloons() # Eğer boş oda bulursa ekranda kutlama balonları uçar!
