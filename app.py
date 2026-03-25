@@ -4,7 +4,7 @@ import time
 from datetime import date
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service # YENİ: Servis kütüphanesi eklendi
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 # Ekran ayarı
@@ -15,6 +15,10 @@ st.markdown("**Öncelikli Otel:** Wyndham Alanya 🎯")
 
 # Otellerin Temel Linkleri
 HOTELS = {
+    "Wyndham Alanya 🏆": "https://www.wyndhamhotels.com/wyndham/antalya-turkiye/wyndham-alanya/rooms-rates",
+    "Ramada Resort Akbük": "https://www.wyndhamhotels.com/ramada/aydin-turkiye/ramada-resort-akbuk/rooms-rates",
+    "Ramada Hotel & Suites Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-hotel-and-suites-kusadasi/rooms-rates",
+    "Ramada Resort Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-resort-kusadasi/rooms-rates",
     "Ramada Tire": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-by-wyndham-tire/rooms-rates",
     "Wyndham Garden Lara": "https://www.wyndhamhotels.com/wyndham-garden/antalya-turkiye/wyndham-garden-lara/rooms-rates",
     "Ramada Resort Lara": "https://www.wyndhamhotels.com/ramada/antalya-turkiye/ramada-resort-lara/rooms-rates",
@@ -39,43 +43,47 @@ def check_free_night(driver, hotel_url, checkin, checkout):
     
     try:
         driver.get(full_url)
-        # Sitenin verileri yüklemesi ve odayı bulması için bekleme
-        time.sleep(6) 
         
-        body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
-        
-        if "free nights" in body_text or "pts/night" in body_text or "15,000" in body_text:
-            return "✅ BOŞ ODA BULUNDU!", full_url
-        elif "this hotel is not available for your dates" in body_text:
-            return "❌ Dolu", full_url
-        elif "access denied" in body_text or "security" in body_text:
-             return "⚠️ Sistem Engeli", full_url
-        else:
-            return "❓ Belirsiz (Linke Tıkla)", full_url
+        # YENİ AKILLI BEKLEME SİSTEMİ (Maksimum 12 saniye, saniye saniye kontrol)
+        for _ in range(12):
+            time.sleep(1) # Sadece 1 saniye bekle ve sayfaya bak
+            body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
+            
+            # 1. ÖNCELİK: KESİNLİKLE ODA YOK DURUMU (Menüdeki yazılara aldanmamak için ilk buna bakıyoruz)
+            if "this hotel is not available for your dates" in body_text:
+                return "❌ Dolu", full_url
+                
+            # 2. ÖNCELİK: KESİNLİKLE ODA VAR DURUMU ("Free nights" menülerde de olabileceği için fiyat tablosuna özgü "pts/night" arıyoruz)
+            if "pts/night" in body_text:
+                return "✅ BOŞ ODA BULUNDU!", full_url
+                
+            # Güvenlik Kontrolü
+            if "access denied" in body_text or "security check" in body_text:
+                 return "⚠️ Sistem Engeli", full_url
+                 
+        # 12 saniyenin sonunda hala ikisini de göremediyse (Sayfa tam yüklenmemiş olabilir)
+        return "❓ Belirsiz (Yavaş Yüklendi)", full_url
             
     except Exception as e:
         return "⚠️ Bağlantı Hatası", full_url
 
 if st.button("🚀 Taramayı Başlat", type="primary"):
-    st.info("Tarama başladı... Sistem sayfaların tam yüklenmesini beklediği için her otel yaklaşık 6 saniye sürecektir.")
+    st.info("Tarama başladı... Akıllı bekleme devrede, sistem hızlı tepki verecek.")
     
     table_placeholder = st.empty()
     
-    # YENİ: Streamlit Cloud (Linux) için özel Chrome Ayarları ve Dosya Yolları
     options = Options()
-    options.add_argument('--headless') # Görünmez mod
+    options.add_argument('--headless')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
-    # BURASI ÇOK ÖNEMLİ: Streamlit sunucusundaki tarayıcının yerini gösteriyoruz
     options.binary_location = "/usr/bin/chromium"
     service = Service("/usr/bin/chromedriver")
     
     try:
-        # Chrome'u tanımlanan servis ve yollarla başlat
         driver = webdriver.Chrome(service=service, options=options)
         
         results =[]
@@ -107,9 +115,8 @@ if st.button("🚀 Taramayı Başlat", type="primary"):
                 )
                 
     except Exception as e:
-        st.error(f"Chrome başlatılamadı! Hata detayı: {e}")
+        st.error(f"Sistem Hatası: {e}")
     finally:
-        # Hata olsa da olmasa da sekmeleri kapat (sunucu şişmesin)
         if 'driver' in locals():
             driver.quit()
         
