@@ -17,22 +17,38 @@ HOTELS = {
     "Ramada Encore İzmir": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-encore-izmir/rooms-rates"
 }
 
+# Temmuz ayının son Cumasına (31 Temmuz) kadar uzatılmış liste
 FULL_DATES =[
+    # 1. Hafta (29 Haziran - 3 Temmuz)
     (date(2026, 6, 29), date(2026, 7, 3), "29 Haz - 3 Tem (Pzt - Cuma)"),
     (date(2026, 6, 29), date(2026, 7, 1), "29 Haz - 1 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 1), date(2026, 7, 3), "1 Tem - 3 Tem (Çarş - Cuma)"),
-    (date(2026, 7, 6), date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
-    (date(2026, 7, 6), date(2026, 7, 8), "6 Tem - 8 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 1),  date(2026, 7, 3), "1 Tem - 3 Tem (Çarş - Cuma)"),
+    # 2. Hafta (6 Temmuz - 10 Temmuz)
+    (date(2026, 7, 6),  date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
+    (date(2026, 7, 6),  date(2026, 7, 8),  "6 Tem - 8 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 8),  date(2026, 7, 10), "8 Tem - 10 Tem (Çarş - Cuma)"),
+    # 3. Hafta (13 Temmuz - 17 Temmuz)
+    (date(2026, 7, 13), date(2026, 7, 17), "13 Tem - 17 Tem (Pzt - Cuma)"),
+    (date(2026, 7, 13), date(2026, 7, 15), "13 Tem - 15 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 15), date(2026, 7, 17), "15 Tem - 17 Tem (Çarş - Cuma)"),
+    # 4. Hafta (20 Temmuz - 24 Temmuz)
+    (date(2026, 7, 20), date(2026, 7, 24), "20 Tem - 24 Tem (Pzt - Cuma)"),
+    (date(2026, 7, 20), date(2026, 7, 22), "20 Tem - 22 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 22), date(2026, 7, 24), "22 Tem - 24 Tem (Çarş - Cuma)"),
+    # 5. Hafta (27 Temmuz - 31 Temmuz)
+    (date(2026, 7, 27), date(2026, 7, 31), "27 Tem - 31 Tem (Pzt - Cuma)"),
+    (date(2026, 7, 27), date(2026, 7, 29), "27 Tem - 29 Tem (Pzt - Çarş)"),
+    (date(2026, 7, 29), date(2026, 7, 31), "29 Tem - 31 Tem (Çarş - Cuma)"),
 ]
 
-# TEMİZ TARAYICI OLUŞTURMA FONKSİYONU
 def create_driver():
     options = Options()
     options.page_load_strategy = 'eager'
     options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    # Sitenin bizi mobil cihaz veya gerçek bilgisayar sanması için rastgelelik
+    options.add_argument('--disable-gpu') # Bulut sunucular için ekstra stabilite
+    options.add_argument('window-size=1920x1080')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     return webdriver.Chrome(options=options)
 
@@ -42,7 +58,7 @@ def check_free_night(driver, hotel_url, checkin, checkout):
     full_url = f"{hotel_url}?brand_id=ALL&checkInDate={ci_str}&checkOutDate={co_str}&useWRPoints=true&children=0&adults=1&rooms=1"
     
     try:
-        driver.set_page_load_timeout(15) # 15 Saniyede açılmazsa zorlama
+        driver.set_page_load_timeout(15) 
         driver.get(full_url)
         
         for _ in range(12):
@@ -50,42 +66,52 @@ def check_free_night(driver, hotel_url, checkin, checkout):
             body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
             if "this hotel is not available for your dates" in body_text:
                 return "❌ Dolu", full_url
-            if "pts/night" in body_text:
+            if "pts/night" in body_text or "free nights" in body_text:
                 return "✅ BOŞ ODA BULUNDU!", full_url
             if "access denied" in body_text or "security check" in body_text:
                  return "⚠️ Güvenlik Engeli", full_url
                  
         return "❓ Belirsiz", full_url
-    except:
+    except Exception as e:
         return "⚠️ Bağlantı Hatası", full_url
 
-def main():
-    print("Otomatik tarama başlatılıyor... Hayalet modu aktif!")
-    
+# Arayüzden ilerlemeyi göstermek için fonksiyonu modifiye ettik
+def run_scan(progress_bar=None, status_text=None, log_container=None):
     tz = pytz.timezone('Europe/Istanbul')
     current_time = datetime.now(tz).strftime("%d.%m.%Y %H:%M")
     results =[]
+    logs =[]
     
+    def update_log(msg):
+        print(msg)
+        if log_container:
+            logs.append(msg)
+            # Sadece son 8 logu göster (arayüz kalabalık olmasın)
+            log_container.code("\n".join(logs[-8:]))
+
+    update_log("🚀 Motorlar çalıştırılıyor... Selenium başlatılıyor.")
     driver = create_driver()
-    request_counter = 0 # Kaç arama yaptığımızı sayacak
+    request_counter = 0 
+    total_steps = len(HOTELS) * len(FULL_DATES)
     
     try:
         for hotel_name, base_url in HOTELS.items():
-            print(f"\n🏨 Taranıyor: {hotel_name}")
+            update_log(f"\n🏨 Taranıyor: {hotel_name}")
             
             for checkin, checkout, date_label in FULL_DATES:
-                # GÜVENLİK ZIRHI: Her 15 aramada bir tarayıcıyı tamamen kapat ve yenisini aç
                 if request_counter > 0 and request_counter % 15 == 0:
-                    print("🛡️ Anti-Bot devrede: Çerezler temizleniyor, yeni gizli sekme açılıyor...")
+                    update_log("🛡️ Anti-Bot devrede: Çerezler temizleniyor, sekme yenileniyor...")
                     driver.quit()
-                    time.sleep(random.uniform(5, 8)) # Şüphe çekmemek için 5-8 saniye bekle
+                    time.sleep(random.uniform(5, 8))
                     driver = create_driver()
                 
-                # Her arama arası hafif rastgele bekleme (İnsan taklidi)
                 time.sleep(random.uniform(2, 4))
                 
+                if status_text:
+                    status_text.info(f"⏳ Kontrol ediliyor: {hotel_name} | {date_label}")
+                
                 status, link = check_free_night(driver, base_url, checkin, checkout)
-                print(f"   -> {date_label}: {status}")
+                update_log(f"   -> {date_label}: {status}")
                 
                 results.append({
                     "Tarama Zamanı": current_time,
@@ -96,13 +122,16 @@ def main():
                 })
                 
                 request_counter += 1
+                if progress_bar: # İlerleme çubuğunu doldur
+                    ilerleme = min(request_counter / total_steps, 1.0)
+                    progress_bar.progress(ilerleme)
                 
     finally:
-        driver.quit() # En sonunda tarayıcıyı kesin kapat
+        driver.quit() 
         
-    print("Tarama bitti! Veriler kaydediliyor...")
+    update_log("✅ Tarama bitti! Veriler kaydediliyor...")
     
-    # ---------------- KAYIT İŞLEMLERİ ----------------
+    # Verileri Kaydet
     df = pd.DataFrame(results)
     df.to_csv('son_durum.csv', index=False)
     
@@ -116,7 +145,9 @@ def main():
         except FileNotFoundError:
             bos_odalar.to_csv('bulunan_odalar_gecmisi.csv', index=False)
             
-    print("Kayıt Başarılı!")
+    update_log("💾 Kayıt Başarılı!")
+    return df
 
 if __name__ == "__main__":
-    main()
+    # Eğer dosyayı manuel terminalden çalıştırırsan diye
+    run_scan()
