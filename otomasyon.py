@@ -8,9 +8,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
 HOTELS = {
-    "Wyndham Alanya 🏆": "https://www.wyndhamhotels.com/wyndham/antalya-turkiye/wyndham-alanya/rooms-rates",
-    "Ramada Resort Akbük": "https://www.wyndhamhotels.com/ramada/aydin-turkiye/ramada-resort-akbuk/rooms-rates",
-    "Ramada Hotel & Suites Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-hotel-and-suites-kusadasi/rooms-rates",
     "Ramada Resort Kuşadası": "https://www.wyndhamhotels.com/ramada/kusadasi-turkiye/ramada-resort-kusadasi/rooms-rates",
     "Ramada Tire": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-by-wyndham-tire/rooms-rates",
     "Wyndham Garden Lara": "https://www.wyndhamhotels.com/wyndham-garden/antalya-turkiye/wyndham-garden-lara/rooms-rates",
@@ -25,31 +22,7 @@ FULL_DATES =[
     (date(2026, 7, 1), date(2026, 7, 3), "1 Tem - 3 Tem (Çarş - Cuma)"),
     (date(2026, 7, 6), date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
     (date(2026, 7, 6), date(2026, 7, 8), "6 Tem - 8 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 8), date(2026, 7, 10), "8 Tem - 10 Tem (Çarş - Cuma)"),
-    (date(2026, 7, 13), date(2026, 7, 17), "13 Tem - 17 Tem (Pzt - Cuma)"),
-    (date(2026, 7, 13), date(2026, 7, 15), "13 Tem - 15 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 15), date(2026, 7, 17), "15 Tem - 17 Tem (Çarş - Cuma)"),
-    (date(2026, 7, 20), date(2026, 7, 24), "20 Tem - 24 Tem (Pzt - Cuma)"),
-    (date(2026, 7, 20), date(2026, 7, 22), "20 Tem - 22 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 22), date(2026, 7, 24), "22 Tem - 24 Tem (Çarş - Cuma)"),
-    (date(2026, 7, 27), date(2026, 7, 31), "27 Tem - 31 Tem (Pzt - Cuma)"),
-    (date(2026, 7, 27), date(2026, 7, 29), "27 Tem - 29 Tem (Pzt - Çarş)"),
-    (date(2026, 7, 29), date(2026, 7, 31), "29 Tem - 31 Tem (Çarş - Cuma)"),
-    (date(2026, 8, 3), date(2026, 8, 7), "3 Ağu - 7 Ağu (Pzt - Cuma)"),
-    (date(2026, 8, 3), date(2026, 8, 5), "3 Ağu - 5 Ağu (Pzt - Çarş)"),
-    (date(2026, 8, 5), date(2026, 8, 7), "5 Ağu - 7 Ağu (Çarş - Cuma)"),
-    (date(2026, 8, 10), date(2026, 8, 14), "10 Ağu - 14 Ağu (Pzt - Cuma)"),
-    (date(2026, 8, 10), date(2026, 8, 12), "10 Ağu - 12 Ağu (Pzt - Çarş)"),
-    (date(2026, 8, 12), date(2026, 8, 14), "12 Ağu - 14 Ağu (Çarş - Cuma)"),
-    (date(2026, 8, 17), date(2026, 8, 21), "17 Ağu - 21 Ağu (Pzt - Cuma)"),
-    (date(2026, 8, 17), date(2026, 8, 19), "17 Ağu - 19 Ağu (Pzt - Çarş)"),
-    (date(2026, 8, 19), date(2026, 8, 21), "19 Ağu - 21 Ağu (Çarş - Cuma)"),
-    (date(2026, 8, 24), date(2026, 8, 28), "24 Ağu - 28 Ağu (Pzt - Cuma)"),
-    (date(2026, 8, 24), date(2026, 8, 26), "24 Ağu - 26 Ağu (Pzt - Çarş)"),
-    (date(2026, 8, 26), date(2026, 8, 28), "26 Ağu - 28 Ağu (Çarş - Cuma)"),
-    (date(2026, 8, 31), date(2026, 9, 4), "31 Ağu - 4 Eyl (Pzt - Cuma)"),
-    (date(2026, 8, 31), date(2026, 9, 2), "31 Ağu - 2 Eyl (Pzt - Çarş)"),
-    (date(2026, 9, 2), date(2026, 9, 4), "2 Eyl - 4 Eyl (Çarş - Cuma)")
+    (date(2026, 7, 8), date(2026, 7, 10), "8 Tem - 10 Tem (Çarş - Cuma)")
 ]
 
 def create_driver():
