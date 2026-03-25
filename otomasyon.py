@@ -6,6 +6,7 @@ import pytz
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException, WebDriverException
 import traceback
 
 HOTELS = {
@@ -20,7 +21,7 @@ HOTELS = {
     "Ramada Encore İzmir": "https://www.wyndhamhotels.com/ramada/izmir-turkiye/ramada-encore-izmir/rooms-rates"
 }
 
-# SADECE PAZARTESİ - CUMA (4 Gece)
+# SADECE PAZARTESİ - CUMA (4 Gece) - Toplam 90 Adım
 FULL_DATES =[
     (date(2026, 6, 29), date(2026, 7, 3), "29 Haz - 3 Tem (Pzt - Cuma)"),
     (date(2026, 7, 6), date(2026, 7, 10), "6 Tem - 10 Tem (Pzt - Cuma)"),
@@ -36,33 +37,22 @@ FULL_DATES =[
 
 def create_driver():
     options = Options()
-    # Eager modu iptal edildi, sitenin tam yüklenmesini bekleyeceğiz
-    options.page_load_strategy = 'normal' 
+    options.page_load_strategy = 'eager' # Tamamen yüklenmesini bekleme! Yazılar gelse yeter.
     options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
-    
-    # İLERİ SEVİYE BOT GİZLEME (Cloudflare/Akamai aşmak için)
     options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("excludeSwitches",["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
+    # Daha inandırıcı bir Google Chrome kimliği
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36')
     
     driver = webdriver.Chrome(options=options)
     
-    # Javascript ile Webdriver kimliğini silme
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-            Object.defineProperty(navigator, 'webdriver', {
-              get: () => undefined
-            })
-        '''
-    })
-    
-    # 10 Saniye çok kısaydı, 25 saniyeye çıkarıldı (Zaman aşımını önler)
-    driver.set_page_load_timeout(25) 
+    # 18 SANİYE KURALI! 18 saniyede site tepki vermezse bağlantıyı zorla kes!
+    driver.set_page_load_timeout(18) 
     return driver
 
 def check_free_night(driver, hotel_url, checkin, checkout):
@@ -72,8 +62,14 @@ def check_free_night(driver, hotel_url, checkin, checkout):
     
     try:
         driver.get(full_url)
-        # Sitenin yüklenmesi için 15 saniyeye kadar döngü ile bekleme
-        for _ in range(15):
+    except TimeoutException:
+        # Eğer site sonsuz yükleme tuzağına girdiyse, hatayı yut ve loaded kısmı okumaya çalış
+        pass
+    except WebDriverException:
+        return "⚠️ Bağlantı Koptu", full_url
+
+    try:
+        for _ in range(10): # 10 saniye boyunca yazıları ara
             time.sleep(1) 
             body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
             if "this hotel is not available for your dates" in body_text:
@@ -83,9 +79,9 @@ def check_free_night(driver, hotel_url, checkin, checkout):
             if "pardon our interruption" in body_text or "access denied" in body_text or "security check" in body_text:
                  return "⚠️ Güvenlik Engeli", full_url
                  
-        return "❓ Belirsiz", full_url
+        return "❓ Belirsiz / Dondu", full_url
     except Exception as e:
-        return "⚠️ Zaman Aşımı/Hata", full_url
+        return "⚠️ Sayfa Okunamadı", full_url
 
 def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=False):
     tz = pytz.timezone('Europe/Istanbul')
@@ -100,7 +96,7 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
                 logs.append(msg)
                 log_container.code("\n".join(logs[-5:]))
 
-    update_log("🚀 Tarama başlatılıyor, sistem maskelendi...")
+    update_log("🚀 Tarama başlatıldı (Anti-Tuzak Devrede)...")
     try:
         driver = create_driver()
     except Exception as e:
@@ -108,15 +104,14 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
         return pd.DataFrame()
 
     request_counter = 0 
-    hata_sayaci = 0 # Üst üste hata/engel alınırsa diye sayaç
-    total_steps = len(HOTELS) * len(FULL_DATES) # 90 adım
+    total_steps = len(HOTELS) * len(FULL_DATES)
     
     try:
         for hotel_name, base_url in HOTELS.items():
             update_log(f"🏨 {hotel_name} kontrol ediliyor...")
             for checkin, checkout, date_label in FULL_DATES:
                 
-                time.sleep(random.uniform(2.5, 4.5)) # İnsan beklemesi (Biraz artırıldı)
+                time.sleep(random.uniform(2, 4))
                 
                 if status_text and not is_auto:
                     status_text.info(f"⏳ Taranıyor ({request_counter + 1}/{total_steps}): **{hotel_name}** | {date_label}")
@@ -124,20 +119,15 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
                 status, link = check_free_night(driver, base_url, checkin, checkout)
                 update_log(f" -> {date_label}: {status}")
                 
-                # Sadece üst üste 2 kez "Belirsiz" veya "Hata" alırsak tarayıcıyı yenile
-                if "Belirsiz" in status or "Engeli" in status or "Hata" in status:
-                    hata_sayaci += 1
-                else:
-                    hata_sayaci = 0 # Başarılı okuduysa hata sayacını sıfırla
-                
-                if hata_sayaci >= 2:
-                    update_log("🛡️ Üst üste engel tespit edildi. Yeni kimlik oluşturuluyor...")
+                # ZORUNLU RESET: Eğer site bizi tuzağa düşürüp dondurduysa (Belirsiz veya Engeli)
+                # O tarayıcıyı hemen çöpe atıp 0'dan yeni tarayıcı açıyoruz!
+                if "Belirsiz" in status or "Engeli" in status or "Koptu" in status or "Okunamadı" in status:
+                    update_log("⚠️ Sayfa dondu! Kilit kırılıyor, yeni gizli sekme açılıyor...")
                     try:
                         driver.quit()
                     except: pass
-                    time.sleep(6) # 6 saniye soluklan
+                    time.sleep(3)
                     driver = create_driver()
-                    hata_sayaci = 0 # Sıfırla ve devam et
                 
                 results.append({
                     "Tarama Zamanı": current_time,
@@ -152,10 +142,9 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
                     progress_bar.progress(min(request_counter / total_steps, 1.0))
                 
     except Exception as e:
-        update_log(f"Kritik Hata (Ancak kaydedildi): {str(e)}")
+        update_log(f"Kritik Hata: {str(e)}")
     finally:
-        try:
-            driver.quit() 
+        try: driver.quit() 
         except: pass
         
     update_log("✅ 90 Kombinasyon tamamlandı, veriler kaydediliyor...")
@@ -174,9 +163,8 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
             bos_odalar.to_csv('bulunan_odalar_gecmisi.csv', index=False)
             
     if is_auto:
-        otomatik_log = f"{current_time} - Otomatik tarama tamamlandı. {len(bos_odalar)} oda bulundu.\n"
         with open("otomatik_log.txt", "a", encoding="utf-8") as f:
-            f.write(otomatik_log)
+            f.write(f"{current_time} - Otomatik tarama tamamlandı. {len(bos_odalar)} oda bulundu.\n")
 
     return df
 
