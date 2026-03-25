@@ -36,16 +36,33 @@ FULL_DATES =[
 
 def create_driver():
     options = Options()
-    options.page_load_strategy = 'eager' # Sayfanın tamamının yüklenmesini beklemez, hızlandırır.
+    # Eager modu iptal edildi, sitenin tam yüklenmesini bekleyeceğiz
+    options.page_load_strategy = 'normal' 
     options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    options.add_argument('window-size=1920x1080')
-    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    options.add_argument('--window-size=1920,1080')
+    
+    # İLERİ SEVİYE BOT GİZLEME (Cloudflare/Akamai aşmak için)
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36')
     
     driver = webdriver.Chrome(options=options)
-    driver.set_page_load_timeout(10) # 10 saniyede açılmazsa zorla devam et
+    
+    # Javascript ile Webdriver kimliğini silme
+    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+        'source': '''
+            Object.defineProperty(navigator, 'webdriver', {
+              get: () => undefined
+            })
+        '''
+    })
+    
+    # 10 Saniye çok kısaydı, 25 saniyeye çıkarıldı (Zaman aşımını önler)
+    driver.set_page_load_timeout(25) 
     return driver
 
 def check_free_night(driver, hotel_url, checkin, checkout):
@@ -55,15 +72,15 @@ def check_free_night(driver, hotel_url, checkin, checkout):
     
     try:
         driver.get(full_url)
-        # Sitenin yüklenmesi için 8 kere 1 saniyelik kontrol
-        for _ in range(8):
+        # Sitenin yüklenmesi için 15 saniyeye kadar döngü ile bekleme
+        for _ in range(15):
             time.sleep(1) 
             body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
             if "this hotel is not available for your dates" in body_text:
                 return "❌ Dolu", full_url
             if "pts/night" in body_text or "free nights" in body_text:
                 return "✅ BOŞ ODA BULUNDU!", full_url
-            if "access denied" in body_text or "security check" in body_text:
+            if "pardon our interruption" in body_text or "access denied" in body_text or "security check" in body_text:
                  return "⚠️ Güvenlik Engeli", full_url
                  
         return "❓ Belirsiz", full_url
@@ -83,7 +100,7 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
                 logs.append(msg)
                 log_container.code("\n".join(logs[-5:]))
 
-    update_log("🚀 Tarama başlatılıyor...")
+    update_log("🚀 Tarama başlatılıyor, sistem maskelendi...")
     try:
         driver = create_driver()
     except Exception as e:
@@ -91,28 +108,36 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
         return pd.DataFrame()
 
     request_counter = 0 
+    hata_sayaci = 0 # Üst üste hata/engel alınırsa diye sayaç
     total_steps = len(HOTELS) * len(FULL_DATES) # 90 adım
     
     try:
         for hotel_name, base_url in HOTELS.items():
             update_log(f"🏨 {hotel_name} kontrol ediliyor...")
             for checkin, checkout, date_label in FULL_DATES:
-                # Anti-bot: 20 aramada bir çerez temizle, hata alırsan görmezden gel
-                if request_counter > 0 and request_counter % 20 == 0:
-                    update_log("🛡️ Anti-Bot devrede: Tarayıcı yenileniyor...")
-                    try:
-                        driver.quit()
-                    except: pass
-                    time.sleep(2)
-                    driver = create_driver()
                 
-                time.sleep(random.uniform(1.5, 3)) # İnsan beklemesi
+                time.sleep(random.uniform(2.5, 4.5)) # İnsan beklemesi (Biraz artırıldı)
                 
                 if status_text and not is_auto:
                     status_text.info(f"⏳ Taranıyor ({request_counter + 1}/{total_steps}): **{hotel_name}** | {date_label}")
                 
                 status, link = check_free_night(driver, base_url, checkin, checkout)
                 update_log(f" -> {date_label}: {status}")
+                
+                # Sadece üst üste 2 kez "Belirsiz" veya "Hata" alırsak tarayıcıyı yenile
+                if "Belirsiz" in status or "Engeli" in status or "Hata" in status:
+                    hata_sayaci += 1
+                else:
+                    hata_sayaci = 0 # Başarılı okuduysa hata sayacını sıfırla
+                
+                if hata_sayaci >= 2:
+                    update_log("🛡️ Üst üste engel tespit edildi. Yeni kimlik oluşturuluyor...")
+                    try:
+                        driver.quit()
+                    except: pass
+                    time.sleep(6) # 6 saniye soluklan
+                    driver = create_driver()
+                    hata_sayaci = 0 # Sıfırla ve devam et
                 
                 results.append({
                     "Tarama Zamanı": current_time,
@@ -133,7 +158,7 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
             driver.quit() 
         except: pass
         
-    update_log("✅ Tarama bitti, veriler kaydediliyor...")
+    update_log("✅ 90 Kombinasyon tamamlandı, veriler kaydediliyor...")
     
     df = pd.DataFrame(results)
     df.to_csv('son_durum.csv', index=False)
@@ -148,7 +173,6 @@ def run_scan(progress_bar=None, status_text=None, log_container=None, is_auto=Fa
         except FileNotFoundError:
             bos_odalar.to_csv('bulunan_odalar_gecmisi.csv', index=False)
             
-    # Eğer otomatik taramaysa logunu ayrı tutalım
     if is_auto:
         otomatik_log = f"{current_time} - Otomatik tarama tamamlandı. {len(bos_odalar)} oda bulundu.\n"
         with open("otomatik_log.txt", "a", encoding="utf-8") as f:
