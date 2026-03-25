@@ -12,117 +12,177 @@ def schedule_task():
     tz = pytz.timezone('Europe/Istanbul')
     while True:
         now = datetime.now(tz)
-        # Sadece bu saatlerde ve dakikası 0 iken çalışır
-        if now.hour in[3, 11, 19] and now.minute == 0:
+        if now.hour in [3, 11, 19] and now.minute == 0:
             try:
                 run_scan(is_auto=True)
-                time.sleep(65) # Aynı dakika içinde 2 kere çalışmasını engellemek için
+                time.sleep(65) 
             except:
                 pass
-        time.sleep(30) # Her 30 saniyede bir saati kontrol et
+        time.sleep(30)
 
-# Bu kodu Streamlit başlatıldığında sadece 1 kere tetikler
 if 'scheduler_started' not in st.session_state:
     t = threading.Thread(target=schedule_task, daemon=True)
     t.start()
     st.session_state['scheduler_started'] = True
 
-# --- SAYFA AYARLARI VE MODERN CSS TASARIMI ---
-st.set_page_config(page_title="Wyndham Puan Avcısı", layout="wide", page_icon="🏖️")
+# --- GOOGLE AI STUDIO MATERIAL DESIGN CSS ---
+st.set_page_config(page_title="Wyndham Puan Avcısı", layout="wide", page_icon="🔍")
 
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f6; }
-    .main-header { text-align: center; font-family: 'Arial Black', sans-serif; color: #1e3d59; margin-bottom: 20px;}
-    .big-btn-container { display: flex; justify-content: center; margin-bottom: 30px; }
-    .card-container { background-color: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 6px solid #ff6e40; }
-    .card-title { font-size: 20px; font-weight: bold; color: #1e3d59; margin-bottom: 10px; }
-    .status-ok { color: #2e7d32; font-weight: bold; font-size: 16px; background-color: #e8f5e9; padding: 4px 8px; border-radius: 6px; }
-    .status-fail { color: #c62828; font-weight: bold; font-size: 14px; }
-    .date-text { font-size: 15px; color: #555; }
+    /* Google Fontu İçe Aktarma */
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+    
+    html, body, [class*="css"]  {
+        font-family: 'Google Sans', sans-serif !important;
+        background-color: #f8f9fa !important; /* AI Studio açık gri arkaplan */
+        color: #1f1f1f !important;
+    }
+    
+    /* Ana Başlık */
+    .main-header { 
+        font-weight: 500; 
+        color: #1f1f1f; 
+        font-size: 32px;
+        margin-bottom: 8px;
+        letter-spacing: -0.5px;
+    }
+    
+    /* Subtitle (Alt Açıklama) */
+    .sub-text {
+        color: #444746;
+        font-size: 16px;
+        margin-bottom: 24px;
+    }
+    
+    /* Özel Buton Tasarımı (Google Mavi Hap Buton) */
+    div.stButton > button:first-child {
+        background-color: #0b57d0 !important;
+        color: white !important;
+        border-radius: 100px !important; /* Tam oval */
+        padding: 10px 24px !important;
+        font-weight: 500 !important;
+        border: none !important;
+        box-shadow: none !important;
+        transition: background-color 0.2s;
+    }
+    div.stButton > button:first-child:hover {
+        background-color: #0842a0 !important;
+        box-shadow: 0 1px 3px 0 rgba(0,0,0,0.3) !important;
+    }
+
+    /* Kart Tasarımları (Oteller İçin) */
+    .google-card { 
+        background-color: #ffffff; 
+        padding: 24px; 
+        border-radius: 16px; 
+        border: 1px solid #dadce0;
+        margin-bottom: 16px; 
+    }
+    .card-title { 
+        font-size: 18px; 
+        font-weight: 500; 
+        color: #1f1f1f; 
+        margin-bottom: 12px; 
+    }
+    .status-ok { 
+        color: #146c2e; 
+        font-weight: 500; 
+        background-color: #e6f4ea; 
+        padding: 6px 12px; 
+        border-radius: 8px; 
+        display: inline-block;
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+    .status-fail { 
+        color: #b3261e; 
+        font-size: 14px; 
+        font-weight: 500;
+    }
+    .date-text { 
+        font-size: 14px; 
+        color: #444746; 
+        margin-top: 4px;
+        padding-left: 8px;
+        border-left: 3px solid #0b57d0;
+    }
+    
+    /* Streamlit Üst Menüyü Gizleme */
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<h1 class="main-header">🏖️ Wyndham Puan Avcısı Dashboard</h1>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Wyndham Puan Avcısı</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-text">Sistem 9 oteli Pazartesi - Cuma aralığında (toplam 90 kombinasyon) tarayacak şekilde yapılandırılmıştır.</div>', unsafe_allow_html=True)
 
-# SEKMELER
-tab1, tab2, tab3 = st.tabs(["🚀 Canlı Kontrol Merkezi", "🤖 Otomatik Takip Geçmişi", "🎉 BULUNAN ODALAR"])
+# SEKMELER (Google AI Studio tarzı sade sekmeler)
+tab1, tab2, tab3 = st.tabs(["Kontrol Paneli", "Otomatik Geçmiş", "Bulunan Fırsatlar"])
 
-# SEKME 1: MODERN CANLI KONTROL
+# SEKME 1: KONTROL PANELİ
 with tab1:
-    st.write("Tek tıkla 9 otelin 10 farklı tarihini (Sadece Pzt-Cuma) tarayın. Takılma ve çökme koruması aktiftir.")
-    
-    # EN ÜSTTEKİ DEV BUTON
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        if st.button("⚡ TÜMÜNÜ KONTROL ET (90 İSTEK)", type="primary", use_container_width=True):
-            st.markdown("### ⚙️ Canlı Tarama İlerlemesi")
+        if st.button("Taramayı Başlat", use_container_width=True):
+            st.markdown("### Tarama İlerlemesi")
             progress_bar = st.progress(0)
             status_text = st.empty()
             log_container = st.empty()
             
-            with st.spinner("Tarayıcı hazırlanıyor, işlemler başlıyor..."):
+            with st.spinner("Motor başlatılıyor... Lütfen sayfadan ayrılmayın."):
                 run_scan(progress_bar, status_text, log_container, is_auto=False)
                 
-            status_text.success("🎉 Tarama başarıyla tamamlandı! Aşağıdan sonuçları inceleyebilirsiniz.")
+            status_text.success("Tarama tamamlandı!")
             time.sleep(2)
             st.rerun()
 
-    st.markdown("---")
-    st.subheader("📊 Son Tarama Durumu (Oteller)")
-
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     if os.path.exists('son_durum.csv'):
         df = pd.read_csv('son_durum.csv')
-        st.caption(f"🕒 **Son Tarama Zamanı:** {df['Tarama Zamanı'].iloc[0]}")
+        st.markdown(f"<div style='color: #444746; font-size: 14px; margin-bottom: 16px;'>Son Güncelleme: {df['Tarama Zamanı'].iloc[0]}</div>", unsafe_allow_html=True)
         
         oteller = df['Otel Adı'].unique()
-        
-        # Grid sistemiyle otelleri yan yana kartlar halinde diz (3 kolon)
         cols = st.columns(3)
         for i, otel in enumerate(oteller):
             otel_df = df[df['Otel Adı'] == otel]
             basarili_tarihler = otel_df[otel_df['Durum'].str.contains("✅")]
             
-            with cols[i % 3]: # Kolonlara sırayla dağıt
+            with cols[i % 3]:
                 html_content = f"""
-                <div class="card-container">
+                <div class="google-card">
                     <div class="card-title">{otel}</div>
                 """
                 if not basarili_tarihler.empty:
-                    html_content += f'<div style="margin-bottom:10px;"><span class="status-ok">🔥 {len(basarili_tarihler)} Fırsat Bulundu!</span></div>'
+                    html_content += f'<div class="status-ok">✨ {len(basarili_tarihler)} Fırsat Bulundu</div>'
                     for _, row in basarili_tarihler.iterrows():
-                        html_content += f'<div class="date-text">✔️ {row["Tarih"]}</div>'
+                        html_content += f'<div class="date-text">{row["Tarih"]}</div>'
                 else:
-                    html_content += f'<div><span class="status-fail">❌ Şuan Fırsat Yok</span></div>'
+                    html_content += f'<div class="status-fail">Uygun oda bulunamadı</div>'
                 
                 html_content += "</div>"
                 st.markdown(html_content, unsafe_allow_html=True)
-                
-                # Link butonunu kartın dışına eklemek zorundayız (Streamlit HTML içinde interaktif click desteklemez)
-                if not basarili_tarihler.empty:
-                    ilk_link = basarili_tarihler.iloc[0]["Rezervasyon"]
-                    st.link_button(f"{otel} - Rezervasyon Yap", ilk_link, use_container_width=True)
     else:
-        st.info("Henüz manuel bir arama yapılmadı. Yukarıdaki butona tıklayarak taramayı başlatın.")
+        st.info("Sistemi başlatmak için 'Taramayı Başlat' butonuna tıklayın.")
 
-# SEKME 2: OTOMATİK TAKİP (03:00, 11:00, 19:00)
+# SEKME 2: OTOMATİK TAKİP
 with tab2:
-    st.markdown("### 🤖 Robot Bekçiniz Devrede!")
-    st.write("Sistem arka planda **Türkiye saatiyle 03:00, 11:00 ve 19:00'da** otomatik olarak tüm otelleri tarayacak şekilde ayarlanmıştır. Bu uygulamanın barındırıldığı sunucu (sekme) açık kaldığı sürece bu saatlerde kontroller yapılacaktır.")
+    st.markdown("### Arka Plan Çalışmaları")
+    st.write("Sistem TR saati ile **03:00, 11:00 ve 19:00**'da otomatik tetiklenmektedir.")
     
-    st.markdown("**Otomatik Tarama Kayıtları:**")
     if os.path.exists("otomatik_log.txt"):
         with open("otomatik_log.txt", "r", encoding="utf-8") as f:
             loglar = f.readlines()
-            for log in reversed(loglar[-15:]): # Son 15 logu ters sırayla göster
+            for log in reversed(loglar[-15:]):
                 st.code(log.strip())
     else:
-        st.write("Henüz otomatik tarama saati gelmedi veya tetiklenmedi.")
+        st.write("Henüz otomatik tarama saati gelmedi.")
 
-# SEKME 3: GEÇMİŞTE BULUNAN ODALAR
+# SEKME 3: BULUNAN ODALAR
 with tab3:
-    st.markdown("### 🎉 Hazine Sandığı")
-    st.write("Geçmiş manuel ve otomatik taramalarda yakalanan boş odaların listesi:")
+    st.markdown("### Geçmiş Fırsatlar")
     if os.path.exists('bulunan_odalar_gecmisi.csv'):
         df_gecmis = pd.read_csv('bulunan_odalar_gecmisi.csv')
         st.dataframe(
@@ -132,4 +192,4 @@ with tab3:
             use_container_width=True
         )
     else:
-        st.write("Şu ana kadar yapılan taramalarda henüz boş oda yakalanamadı.")
+        st.write("Veritabanında henüz fırsat bulunmuyor.")
